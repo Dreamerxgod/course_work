@@ -1,3 +1,5 @@
+import os
+
 from agents.noise_trader import NoiseTrader
 from agents.market_maker import MarketMaker
 from agents.informed_trader import InformedTrader
@@ -20,7 +22,16 @@ from utils import plotting
 from utils.bs_utils import print_iv_rv_summary
 
 
-def main():
+def _path(out_dir, name):
+    if out_dir is None:
+        return name
+    return os.path.join(out_dir, name)
+
+
+def run(out_dir=None, enable_console=True):
+    if out_dir is not None:
+        os.makedirs(out_dir, exist_ok=True)
+
     agents = []
 
     for i in range(cfg.NUM_NOISE_TRADERS):
@@ -62,11 +73,11 @@ def main():
             aggressiveness=cfg.FUNDAMENTAL_TRADER_AGGRESSIVENESS
         ))
 
+    logger = Logger(enable_console=enable_console)
+
     market = Market(initial_price=cfg.INITIAL_PRICE)
+    market.logger = logger
     market.set_agents(agents)
-
-    logger = Logger(enable_console=True)
-
 
     options_market = OptionsMarket(
         strikes=cfg.OPTION_STRIKES,
@@ -95,8 +106,7 @@ def main():
 
     options_market.set_agents(options_agents)
 
-    # Регистрируем опционных агентов в спотовом стакане,
-    # чтобы при дельта-хедже и спотовых ордерах их inventory обновлялось
+
     for a in options_agents:
         market.order_book.agents[a.id] = a
 
@@ -116,8 +126,9 @@ def main():
     for t in range(cfg.WARMUP_STEPS, cfg.WARMUP_STEPS + cfg.NUM_STEPS):
         step_trades = market.step(t, agents)
 
-        print(f"[Time {t}] News: {market.news:.2f}")
-        print(f"Mid price: {market.mid_price:.2f}\n")
+        if enable_console:
+            print(f"[Time {t}] News: {market.news:.2f}")
+            print(f"Mid price: {market.mid_price:.2f}\n")
 
         for tr in step_trades:
             tr['time'] = t
@@ -183,7 +194,6 @@ def main():
         strikes=cfg.OPTION_STRIKES
     )
 
-    # Статистика сделок по типам агентов
     agent_type_map = {}
     for a in agents:
         agent_type_map[a.id] = a.__class__.__name__
@@ -197,7 +207,7 @@ def main():
         spot_trade_counts[agent_type_map.get(tr['seller'], 'Unknown')] += 1
 
     print(f"\nTotal spot trades: {len(trades)}")
-    print("Spot trades by agent type (as buyer + seller):")
+    print("Spot trades by agent type (buyer + seller):")
     for agent_type, count in spot_trade_counts.most_common():
         print(f"  {agent_type}: {count}")
 
@@ -222,17 +232,31 @@ def main():
     plot_options_prices(option_price_history_put, strikes=cfg.OPTION_STRIKES, title='Put Options Prices')
 
 
-    file_io.save_price_history('price_history.csv', price_history)
-    file_io.save_trades('trades.csv', trades)
-    file_io.save_trades('option_trades.csv', option_trades)
+    file_io.save_price_history(_path(out_dir, 'price_history.csv'), price_history)
+    file_io.save_trades(_path(out_dir, 'trades.csv'), trades)
+    file_io.save_trades(_path(out_dir, 'option_trades.csv'), option_trades)
 
-    file_io.save_wide_series_csv('option_mid_call.csv', option_price_history_call, index_name='t')
-    file_io.save_wide_series_csv('option_mid_put.csv', option_price_history_put, index_name='t')
+    file_io.save_wide_series_csv(_path(out_dir, 'option_mid_call.csv'), option_price_history_call, index_name='t')
+    file_io.save_wide_series_csv(_path(out_dir, 'option_mid_put.csv'), option_price_history_put, index_name='t')
 
-    file_io.save_wide_series_csv('iv_call.csv', iv_history_call, index_name='t')
-    file_io.save_wide_series_csv('iv_put.csv', iv_history_put, index_name='t')
+    file_io.save_wide_series_csv(_path(out_dir, 'iv_call.csv'), iv_history_call, index_name='t')
+    file_io.save_wide_series_csv(_path(out_dir, 'iv_put.csv'), iv_history_put, index_name='t')
 
-    file_io.save_series_csv("news_history.csv", news_history, colname="news")
+    file_io.save_series_csv(_path(out_dir, "news_history.csv"), news_history, colname="news")
+
+    return {
+        "price_history": price_history,
+        "trades": trades,
+        "option_trades": option_trades,
+        "rv_history": rv_history,
+        "iv_history_call": iv_history_call,
+        "iv_history_put": iv_history_put,
+        "news_history": news_history,
+    }
+
+
+def main():
+    run()
 
 
 if __name__ == "__main__":

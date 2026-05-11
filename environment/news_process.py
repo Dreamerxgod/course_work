@@ -1,4 +1,5 @@
-import random
+from utils import random_utils as ru
+
 
 class NewsProcess:
     def __init__(self, probability=0.1, volatility=1.0):
@@ -7,8 +8,8 @@ class NewsProcess:
         self.current_news = 0.0
 
     def step(self):
-        if random.random() < self.probability:
-            self.current_news = random.uniform(-self.volatility, self.volatility)
+        if ru.random() < self.probability:
+            self.current_news = ru.uniform(-self.volatility, self.volatility)
         else:
             self.current_news = 0.0
 

@@ -1,5 +1,6 @@
 from environment.options_order_book import OptionsOrderBook
 from utils.bs_utils import bs_price, bs_delta
+from utils import random_utils as ru
 import config as cfg
 
 class OptionsMarket:
@@ -54,7 +55,9 @@ class OptionsMarket:
                 theo = self.theoretical_price(S, K, option_type=opt_type)
                 ob = self.order_books[K][opt_type]
 
-        for agent in agents:
+        agent_order = list(agents)
+        ru.shuffle(agent_order)
+        for agent in agent_order:
             for K_books in self.order_books.values():
                 for ob in K_books.values():
                     ob.cancel_orders_for_agent(agent.id)
@@ -105,7 +108,9 @@ class OptionsMarket:
             self.mid_prices_put[K] = max(self.mid_prices_put[K], 0.0001)
 
         if spot_order_book is not None and t % cfg.DELTA_HEDGE_INTERVAL == 0:
-            for agent in agents:
+            hedge_order = list(agents)
+            ru.shuffle(hedge_order)
+            for agent in hedge_order:
                 inv_map = getattr(agent, "inventory_by_option", None)
                 if not inv_map:
                     continue

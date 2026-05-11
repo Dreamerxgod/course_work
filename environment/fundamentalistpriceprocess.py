@@ -1,5 +1,6 @@
-import random
 import config as cfg
+from utils import random_utils as ru
+
 
 class FundamentalPriceProcess:
     def __init__(self, initial_price=100, drift=cfg.FUNDAMENTAL_DRIFT, step_interval=cfg.FUNDAMENTAL_INTERVAL):
@@ -13,6 +14,6 @@ class FundamentalPriceProcess:
 
         if self.counter >= self.step_interval:
             self.counter = 0
-            self.fundamental_price += random.gauss(self.drift, cfg.FUNDAMENTAL_SIGMA)
+            self.fundamental_price += ru.gauss(self.drift, cfg.FUNDAMENTAL_SIGMA)
 
         return self.fundamental_price

@@ -2,6 +2,7 @@ from environment.order_book import OrderBook
 from environment.news_process import NewsProcess
 import config as cfg
 from utils.logger import Logger
+from utils import random_utils as ru
 from environment.fundamentalistpriceprocess import FundamentalPriceProcess
 
 class Market:
@@ -43,7 +44,11 @@ class Market:
         self.logger.log_news(t, self.news)
 
         trades = []
-        for agent in agents:
+        # Рандомизируем порядок ходов агентов каждый шаг, чтобы первые в списке
+        # систематически не получали лучшие котировки.
+        agent_order = list(agents)
+        ru.shuffle(agent_order)
+        for agent in agent_order:
             # если у агента есть inventory — считаем его маркетмейкером и снимаем старые заявки
             if hasattr(agent, "inventory"):
                 self.order_book.cancel_orders_for_agent(agent.id)
