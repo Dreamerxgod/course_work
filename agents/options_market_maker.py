@@ -1,4 +1,3 @@
-# agents/options_market_maker.py
 from agents.base_agent import Agent
 import config as cfg
 from utils.bs_utils import bs_price, bs_delta
@@ -7,7 +6,9 @@ import math
 from utils import random_utils as ru
 
 class OptionsMarketMaker(Agent):
-    def __init__(self, id, base_spread_factor=cfg.OPTION_SPREAD_FACTOR, base_size=1, hedge_aggressiveness=1.0):
+    def __init__(self, id, base_spread_factor=cfg.OPTION_SPREAD_FACTOR, base_size=1, hedge_aggressiveness=1.0,
+                 requote_threshold=cfg.OPT_MM_REQUOTE_THRESHOLD,
+                 max_quote_age=cfg.OPT_MM_MAX_QUOTE_AGE):
         super().__init__(id)
         self.inventory = 0
         self.inventory_by_option = {}
@@ -23,6 +24,20 @@ class OptionsMarketMaker(Agent):
         self.prev_option_prices = {}
         self.prev_spot_price = None
 
+        self.requote_threshold = requote_threshold
+        self.max_quote_age = max_quote_age
+        self.last_quoted_S = None
+        self.tick_since_quote = 0
+
+    def should_requote(self, S):
+        if self.last_quoted_S is None:
+            return True
+        if abs(S - self.last_quoted_S) >= self.requote_threshold:
+            return True
+        if self.tick_since_quote >= self.max_quote_age:
+            return True
+        return False
+
     def act(self, market_state):
         S = market_state['spot']
         vol = market_state['vol']
@@ -30,6 +45,10 @@ class OptionsMarketMaker(Agent):
         r = market_state.get('r', 0.0)
         q = market_state.get('q', 0.0)
         strikes = market_state['strikes']
+
+        if not self.should_requote(S):
+            self.tick_since_quote += 1
+            return []
 
         orders = []
         for K in strikes:
@@ -72,5 +91,9 @@ class OptionsMarketMaker(Agent):
                         'strike': K,
                         'option_type': option_type,
                     })
+
+        if orders:
+            self.last_quoted_S = S
+            self.tick_since_quote = 0
 
         return orders

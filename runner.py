@@ -23,7 +23,6 @@ _fig_out_dir = [None]
 
 
 def _save_show():
-    """Подмена plt.show: сохраняем фигуру в out_dir вместо открытия окна."""
     _fig_counter[0] += 1
     fname = f"fig_{_fig_counter[0]:03d}.png"
     out = _fig_out_dir[0]
@@ -41,7 +40,7 @@ def parse_args():
     p.add_argument("--warmup", type=int, default=None,
                    help="warm-up шаги (override cfg.WARMUP_STEPS)")
     p.add_argument("--out_dir", type=str, default=None,
-                   help="каталог для артефактов; по умолчанию out/<ts>_seed<seed>/")
+                   help="каталог для артефактов")
     p.add_argument("--no_plots", action="store_true",
                    help="не сохранять графики (только CSV)")
     p.add_argument("--quiet", action="store_true",
@@ -58,7 +57,6 @@ def make_run_id(seed):
 def main():
     args = parse_args()
 
-    # 1. Apply overrides to cfg (живут на уровне модуля — все импорты cfg видят)
     if args.n_steps is not None:
         cfg.NUM_STEPS = args.n_steps
     if args.warmup is not None:
@@ -66,21 +64,17 @@ def main():
     if args.seed is not None:
         cfg.SEED = args.seed
 
-    # 2. Seed centralized RNG
     ru.set_seed(cfg.SEED)
 
-    # 3. Resolve out_dir
     out_dir = args.out_dir or os.path.join("out", make_run_id(cfg.SEED))
     os.makedirs(out_dir, exist_ok=True)
     _fig_out_dir[0] = out_dir
 
-    # 4. Monkey-patch plt.show -> save (или disable)
     if args.no_plots:
         plt.show = lambda *a, **kw: plt.close()
     else:
         plt.show = _save_show
 
-    # 5. Snapshot конфига в out_dir (для воспроизводимости)
     snapshot = {
         k: getattr(cfg, k) for k in dir(cfg)
         if not k.startswith("_") and isinstance(getattr(cfg, k), (int, float, str, list, tuple, type(None)))
@@ -88,7 +82,6 @@ def main():
     with open(os.path.join(out_dir, "config_snapshot.json"), "w") as f:
         json.dump(snapshot, f, indent=2, default=str)
 
-    # 6. Импортируем main только после установки seed-а и переопределения cfg
     from main import run
     print(f"[runner] seed={cfg.SEED} n_steps={cfg.NUM_STEPS} warmup={cfg.WARMUP_STEPS} out_dir={out_dir}")
     result = run(out_dir=out_dir, enable_console=not args.quiet)

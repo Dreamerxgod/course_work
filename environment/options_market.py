@@ -58,10 +58,6 @@ class OptionsMarket:
         agent_order = list(agents)
         ru.shuffle(agent_order)
         for agent in agent_order:
-            for K_books in self.order_books.values():
-                for ob in K_books.values():
-                    ob.cancel_orders_for_agent(agent.id)
-
             orders = agent.act({
                 'spot': S,
                 'tau': self.tau,
@@ -72,6 +68,14 @@ class OptionsMarket:
                 'mid_prices_call': self.mid_prices_call,
                 'mid_prices_put': self.mid_prices_put
             })
+
+            if orders and hasattr(agent, "inventory_by_option"):
+                has_option_order = any(o.get('instrument') == 'option' for o in orders)
+                if has_option_order:
+                    for K_books in self.order_books.values():
+                        for ob in K_books.values():
+                            ob.cancel_orders_for_agent(agent.id)
+
             for o in orders:
                 if o.get('instrument') == 'spot':
                     if spot_order_book is not None:

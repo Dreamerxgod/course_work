@@ -8,3 +8,4 @@ __pycache__/
 logs/
 utils/logs/
 .claude/
+out/

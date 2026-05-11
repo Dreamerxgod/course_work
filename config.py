@@ -29,11 +29,16 @@ FUNDAMENTAL_TRADER_ORDER_PROB = 0.7
 # Reproducibility
 SEED = None  # None = недетерминированно; задайте int для воспроизводимости
 
-MM_BASE_SPREAD = 0.05
+MM_BASE_SPREAD = 0.30
 MM_INV_RISK = 0.01
 MM_MAX_INVENTORY = 30
 MM_BASE_SIZE = 3
 MM_VOL_SENS = 0.4
+MM_REQUOTE_THRESHOLD = 0.025  # абсолютный сдвиг mid, при котором MM перевыставляет
+MM_MAX_QUOTE_AGE = 50         # форс-рефреш котировки после N тиков
+OPT_MM_REQUOTE_THRESHOLD = 0.05  # сдвиг спота для перевыставления опционных котировок
+OPT_MM_MAX_QUOTE_AGE = 50
+PASSIVE_OFFSET = 0.01         # на сколько отступать внутрь спреда при клиппинге
 
 # News settings
 NEWS_PROBABILITY = 0.3

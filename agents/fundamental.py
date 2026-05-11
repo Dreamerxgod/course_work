@@ -30,8 +30,6 @@ class FundamentalTrader(Agent):
             return []
         side = 'buy' if deviation > 0 else 'sell'
 
-        # Линейный value-trader: цена котировки тянется к fair value пропорционально отклонению.
-        # См. Chiarella & Iori (2002), "A simulation analysis of the microstructure of double auction markets".
         price = mid + self.price_alpha * deviation
         qty = max(1, int(abs(deviation) / self.aggressiveness))
         return [{

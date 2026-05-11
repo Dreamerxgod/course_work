@@ -1,6 +1,7 @@
 from agents.base_agent import Agent
 import config as cfg
 
+
 class MarketMaker(Agent):
     def __init__(
         self,
@@ -8,7 +9,10 @@ class MarketMaker(Agent):
         base_spread=cfg.MM_BASE_SPREAD,
         inventory_risk_aversion=cfg.MM_INV_RISK,
         max_inventory=cfg.MM_MAX_INVENTORY,
-        base_size=cfg.MM_BASE_SIZE
+        base_size=cfg.MM_BASE_SIZE,
+        requote_threshold=cfg.MM_REQUOTE_THRESHOLD,
+        max_quote_age=cfg.MM_MAX_QUOTE_AGE,
+        passive_offset=cfg.PASSIVE_OFFSET,
     ):
         super().__init__(id)
         self.inventory = 0
@@ -16,6 +20,12 @@ class MarketMaker(Agent):
         self.base_spread = base_spread
         self.inventory_risk_aversion = inventory_risk_aversion
         self.base_size = base_size
+        self.requote_threshold = requote_threshold
+        self.max_quote_age = max_quote_age
+        self.passive_offset = passive_offset
+
+        self.last_quoted_mid = None
+        self.tick_since_quote = 0
 
     def compute_spread(self):
         inv_penalty = self.inventory_risk_aversion * abs(self.inventory) / self.max_inventory
@@ -34,16 +44,37 @@ class MarketMaker(Agent):
 
         return bid_size, ask_size
 
+    def should_requote(self, mid):
+        if self.last_quoted_mid is None:
+            return True
+        if abs(mid - self.last_quoted_mid) >= self.requote_threshold:
+            return True
+        if self.tick_since_quote >= self.max_quote_age:
+            return True
+        return False
+
     def act(self, market_state):
         mid = market_state["mid_price"]
+
+        if not self.should_requote(mid):
+            self.tick_since_quote += 1
+            return []
+
         spread = self.compute_spread()
         bid_price = mid - spread / 2
         ask_price = mid + spread / 2
+
+        bb_other = market_state.get("best_bid_other")
+        ba_other = market_state.get("best_ask_other")
+        if ba_other is not None and bid_price >= ba_other:
+            bid_price = ba_other - self.passive_offset
+        if bb_other is not None and ask_price <= bb_other:
+            ask_price = bb_other + self.passive_offset
+
         bid_qty, ask_qty = self.compute_sizes()
 
         orders = []
-
-        if bid_qty > 0:
+        if bid_qty > 0 and bid_price > 0:
             orders.append({
                 'agent_id': self.id,
                 'instrument': 'spot',
@@ -53,7 +84,7 @@ class MarketMaker(Agent):
                 'qty': int(bid_qty),
             })
 
-        if ask_qty > 0:
+        if ask_qty > 0 and ask_price > 0:
             orders.append({
                 'agent_id': self.id,
                 'instrument': 'spot',
@@ -62,5 +93,9 @@ class MarketMaker(Agent):
                 'price': float(ask_price),
                 'qty': int(ask_qty),
             })
+
+        if orders:
+            self.last_quoted_mid = mid
+            self.tick_since_quote = 0
 
         return orders

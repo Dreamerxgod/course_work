@@ -32,6 +32,16 @@ class Market:
     def get_state(self):
         return {'mid_price': self.mid_price, 'news': self.news, 'fundamental_price': self.fundamental_price}
 
+    def get_state_for(self, agent_id):
+        bb_other, ba_other = self.order_book.get_best_excluding(agent_id)
+        return {
+            'mid_price': self.mid_price,
+            'news': self.news,
+            'fundamental_price': self.fundamental_price,
+            'best_bid_other': bb_other,
+            'best_ask_other': ba_other,
+        }
+
     def set_agents(self, agents):
         self.order_book.agents = {a.id: a for a in agents}
 
@@ -40,20 +50,20 @@ class Market:
         self.fundamental_price = self.fundamental_process.step()
 
         self.logger.log(f"[FUNDAMENTAL t={t}] F={self.fundamental_price:.2f}")
-        state = self.get_state()
         self.logger.log_news(t, self.news)
 
         trades = []
-        # Рандомизируем порядок ходов агентов каждый шаг, чтобы первые в списке
-        # систематически не получали лучшие котировки.
         agent_order = list(agents)
         ru.shuffle(agent_order)
         for agent in agent_order:
-            # если у агента есть inventory — считаем его маркетмейкером и снимаем старые заявки
-            if hasattr(agent, "inventory"):
+            per_agent_state = self.get_state_for(agent.id)
+            orders = agent.act(per_agent_state)
+
+            # Отменяем старые ордера агента ТОЛЬКО если он решил перевыставиться.
+            # Это спасает MM от ситуации "отменили — вышли из стакана — клиент пробил спред у соседа".
+            if orders and hasattr(agent, "inventory"):
                 self.order_book.cancel_orders_for_agent(agent.id)
 
-            orders = agent.act(state)
             for o in orders:
                 self.logger.log_order(t, o, agent=agent)
                 trades += self.order_book.add_order(o)
