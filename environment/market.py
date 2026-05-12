@@ -7,10 +7,11 @@ from environment.fundamentalistpriceprocess import FundamentalPriceProcess
 
 class Market:
     def __init__(self, initial_price=100.0,
-                 news_probability = cfg.NEWS_PROBABILITY,
+                 news_probability=cfg.NEWS_PROBABILITY,
                  news_volatility=cfg.NEWS_VOLATILITY,
-                 fundamental_drift=cfg.FUNDAMENTAL_DRIFT,
-                 fundamental_interval=cfg.FUNDAMENTAL_INTERVAL
+                 fundamental_mu=cfg.FUNDAMENTAL_MU,
+                 fundamental_vol=cfg.FUNDAMENTAL_VOL,
+                 steps_per_year=cfg.STEPS_PER_YEAR,
                  ):
         self.fundamental_price = initial_price
         self.mid_price = initial_price
@@ -21,8 +22,10 @@ class Market:
 
         self.fundamental_process = FundamentalPriceProcess(
             initial_price=initial_price,
-            drift=fundamental_drift,
-            step_interval=fundamental_interval)
+            mu=fundamental_mu,
+            sigma=fundamental_vol,
+            steps_per_year=steps_per_year,
+        )
         self.logger = Logger()
 
     def update_news(self):

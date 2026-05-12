@@ -11,12 +11,14 @@ class FundamentalTrader(Agent):
         aggressiveness=cfg.FUNDAMENTAL_TRADER_AGGRESSIVENESS,
         order_prob=cfg.FUNDAMENTAL_TRADER_ORDER_PROB,
         price_alpha=cfg.FUNDAMENTAL_TRADER_PRICE_ALPHA,
+        max_qty=cfg.FUNDAMENTAL_TRADER_MAX_QTY,
     ):
         super().__init__(id)
         self.fundamental_price = fundamental_price
         self.aggressiveness = aggressiveness
         self.order_prob = order_prob
         self.price_alpha = price_alpha
+        self.max_qty = max_qty
 
     def act(self, market_state):
         mid = market_state['mid_price']
@@ -31,7 +33,7 @@ class FundamentalTrader(Agent):
         side = 'buy' if deviation > 0 else 'sell'
 
         price = mid + self.price_alpha * deviation
-        qty = max(1, int(abs(deviation) / self.aggressiveness))
+        qty = max(1, min(self.max_qty, int(abs(deviation) / self.aggressiveness)))
         return [{
             'agent_id': self.id,
             'instrument': 'spot',
