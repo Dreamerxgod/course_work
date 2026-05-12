@@ -52,6 +52,9 @@ class Market:
         self.logger.log(f"[FUNDAMENTAL t={t}] F={self.fundamental_price:.2f}")
         self.logger.log_news(t, self.news)
 
+        self.order_book.set_time(t)
+        self.order_book.expire_old(cfg.ORDER_TTL)
+
         trades = []
         agent_order = list(agents)
         ru.shuffle(agent_order)
@@ -59,8 +62,7 @@ class Market:
             per_agent_state = self.get_state_for(agent.id)
             orders = agent.act(per_agent_state)
 
-            # Отменяем старые ордера агента ТОЛЬКО если он решил перевыставиться.
-            # Это спасает MM от ситуации "отменили — вышли из стакана — клиент пробил спред у соседа".
+
             if orders and hasattr(agent, "inventory"):
                 self.order_book.cancel_orders_for_agent(agent.id)
 

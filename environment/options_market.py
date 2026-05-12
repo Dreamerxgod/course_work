@@ -50,10 +50,11 @@ class OptionsMarket:
             vol = float(vol)
             self.vol = vol
 
-        for K in self.strikes:
-            for opt_type in ['call', 'put']:
-                theo = self.theoretical_price(S, K, option_type=opt_type)
-                ob = self.order_books[K][opt_type]
+        # Время в опционных книгах + TTL-чистка устаревших лимиток.
+        for K_books in self.order_books.values():
+            for ob in K_books.values():
+                ob.set_time(t)
+                ob.expire_old(cfg.ORDER_TTL)
 
         agent_order = list(agents)
         ru.shuffle(agent_order)
@@ -131,20 +132,15 @@ class OptionsMarket:
                 if hedge_qty <= 0:
                     continue
 
-                if delta_exposure > 0:
-                    side = 'sell'
-                    price = max(0.0001, S - 0.0001)
-                else:
-                    side = 'buy'
-                    price = S + 0.0001
+                side = 'sell' if delta_exposure > 0 else 'buy'
+
 
                 spot_order = {
                     'agent_id': agent.id,
                     'instrument': 'spot',
-                    'order_type': 'limit',
+                    'order_type': 'market',
                     'side': side,
-                    'price': float(price),
-                    'qty': hedge_qty
+                    'qty': hedge_qty,
                 }
 
                 if hasattr(self, 'logger') and self.logger:

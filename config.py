@@ -20,25 +20,29 @@ NOISE_ORDER_PROB = 0.3
 INFORMED_TRADER_SENSITIVITY = 0.2
 INFORMED_TRADER_AGGRESSIVENESS = 0.2
 FUNDAMENTAL_TRADER_AGGRESSIVENESS = 0.2
-FUNDAMENTAL_TRADER_PRICE_ALPHA = 0.5  # доля отклонения mid->F, на которую двигаем котировку
+FUNDAMENTAL_TRADER_PRICE_ALPHA = 0.5
 FUNDAMENTAL_DRIFT = 0.0
 FUNDAMENTAL_INTERVAL = 50
 FUNDAMENTAL_SIGMA = 1
 FUNDAMENTAL_TRADER_ORDER_PROB = 0.7
 
-# Reproducibility
-SEED = None  # None = недетерминированно; задайте int для воспроизводимости
+
+SEED = None
 
 MM_BASE_SPREAD = 0.30
 MM_INV_RISK = 0.01
 MM_MAX_INVENTORY = 30
 MM_BASE_SIZE = 3
 MM_VOL_SENS = 0.4
-MM_REQUOTE_THRESHOLD = 0.025  # абсолютный сдвиг mid, при котором MM перевыставляет
-MM_MAX_QUOTE_AGE = 50         # форс-рефреш котировки после N тиков
-OPT_MM_REQUOTE_THRESHOLD = 0.05  # сдвиг спота для перевыставления опционных котировок
+MM_REQUOTE_THRESHOLD = 0.025
+MM_MAX_QUOTE_AGE = 50
+OPT_MM_REQUOTE_THRESHOLD = 0.05
 OPT_MM_MAX_QUOTE_AGE = 50
-PASSIVE_OFFSET = 0.01         # на сколько отступать внутрь спреда при клиппинге
+PASSIVE_OFFSET = 0.01
+
+# lifetime
+ORDER_TTL = 500
+MAX_HEDGE_SLIPPAGE = 0.5
 
 # News settings
 NEWS_PROBABILITY = 0.3

@@ -56,10 +56,12 @@ class Logger:
         trend = getattr(agent, 'last_trend', None)
         trend_str = f" trend={trend:+.4f}" if trend is not None else ""
 
+        price = order.get('price')
+        price_str = f"{price:.4f}" if price is not None else "MKT"
         self.log(
             f"[ORDER t={t}] "
             f"{trader_type}({order['agent_id']}) {order['side']} "
-            f"p={order['price']:.4f} qty={order['qty']}{inv_str}{trend_str}"
+            f"p={price_str} qty={order['qty']}{inv_str}{trend_str}"
         )
 
     def log_option_trade(self, t, trade):
