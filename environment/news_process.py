@@ -2,16 +2,22 @@ from utils import random_utils as ru
 
 
 class NewsProcess:
-    def __init__(self, probability=0.1, volatility=1.0):
-        self.probability = probability
-        self.volatility = volatility
+
+
+    def __init__(self, persistence=0.9, shock_probability=0.05, shock_sigma=0.3):
+        self.persistence = persistence
+        self.shock_probability = shock_probability
+        self.shock_sigma = shock_sigma
         self.current_news = 0.0
 
     def step(self):
-        if ru.random() < self.probability:
-            self.current_news = ru.uniform(-self.volatility, self.volatility)
-        else:
-            self.current_news = 0.0
+
+        self.current_news *= self.persistence
+        shock = 0.0
+        if ru.random() < self.shock_probability:
+            shock = ru.gauss(0.0, self.shock_sigma)
+            self.current_news += shock
+        return shock
 
     def get_news(self):
         return self.current_news

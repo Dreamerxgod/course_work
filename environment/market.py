@@ -7,8 +7,9 @@ from environment.fundamentalistpriceprocess import FundamentalPriceProcess
 
 class Market:
     def __init__(self, initial_price=100.0,
-                 news_probability=cfg.NEWS_PROBABILITY,
-                 news_volatility=cfg.NEWS_VOLATILITY,
+                 news_persistence=cfg.NEWS_PERSISTENCE,
+                 news_shock_probability=cfg.NEWS_SHOCK_PROBABILITY,
+                 news_shock_sigma=cfg.NEWS_SHOCK_SIGMA,
                  fundamental_mu=cfg.FUNDAMENTAL_MU,
                  fundamental_vol=cfg.FUNDAMENTAL_VOL,
                  steps_per_year=cfg.STEPS_PER_YEAR,
@@ -16,8 +17,9 @@ class Market:
         self.fundamental_price = initial_price
         self.mid_price = initial_price
         self.order_book = OrderBook(initial_price=initial_price)
-        self.news_process = NewsProcess(probability=news_probability,
-                                        volatility=news_volatility)
+        self.news_process = NewsProcess(persistence=news_persistence,
+                                        shock_probability=news_shock_probability,
+                                        shock_sigma=news_shock_sigma)
         self.news = 0.0
 
         self.fundamental_process = FundamentalPriceProcess(
@@ -29,8 +31,9 @@ class Market:
         self.logger = Logger()
 
     def update_news(self):
-        self.news_process.step()
+        shock = self.news_process.step()
         self.news = self.news_process.get_news()
+        return shock
 
     def get_state(self):
         return {'mid_price': self.mid_price, 'news': self.news, 'fundamental_price': self.fundamental_price}
@@ -49,8 +52,8 @@ class Market:
         self.order_book.agents = {a.id: a for a in agents}
 
     def step(self, t, agents):
-        self.update_news()
-        self.fundamental_price = self.fundamental_process.step()
+        news_shock = self.update_news()
+        self.fundamental_price = self.fundamental_process.step(news_shock=news_shock)
 
         self.logger.log(f"[FUNDAMENTAL t={t}] F={self.fundamental_price:.2f}")
         self.logger.log_news(t, self.news)
