@@ -1,9 +1,13 @@
+import math
+from collections import deque
+
 from environment.order_book import OrderBook
 from environment.news_process import NewsProcess
 import config as cfg
 from utils.logger import Logger
 from utils import random_utils as ru
 from environment.fundamentalistpriceprocess import FundamentalPriceProcess
+
 
 class Market:
     def __init__(self, initial_price=100.0,
@@ -13,6 +17,7 @@ class Market:
                  fundamental_mu=cfg.FUNDAMENTAL_MU,
                  fundamental_vol=cfg.FUNDAMENTAL_VOL,
                  steps_per_year=cfg.STEPS_PER_YEAR,
+                 vol_window=200,
                  ):
         self.fundamental_price = initial_price
         self.mid_price = initial_price
@@ -30,6 +35,19 @@ class Market:
         )
         self.logger = Logger()
 
+        self.recent_prices = deque(maxlen=vol_window + 1)
+        self.recent_prices.append(initial_price)
+        self.recent_vol = fundamental_vol * math.sqrt(1.0 / steps_per_year)
+
+    def update_vol_estimate(self):
+        if len(self.recent_prices) < 10:
+            return
+        prices = list(self.recent_prices)
+        returns = [math.log(prices[i] / prices[i - 1]) for i in range(1, len(prices))]
+        mean_r = sum(returns) / len(returns)
+        var = sum((r - mean_r) ** 2 for r in returns) / len(returns)
+        self.recent_vol = math.sqrt(var) if var > 0 else self.recent_vol
+
     def update_news(self):
         shock = self.news_process.step()
         self.news = self.news_process.get_news()
@@ -46,6 +64,7 @@ class Market:
             'fundamental_price': self.fundamental_price,
             'best_bid_other': bb_other,
             'best_ask_other': ba_other,
+            'recent_vol': self.recent_vol,
         }
 
     def set_agents(self, agents):
@@ -77,6 +96,8 @@ class Market:
                 trades += self.order_book.add_order(o)
 
         self.mid_price = self.order_book.get_mid_price(last_price=self.mid_price)
+        self.recent_prices.append(self.mid_price)
+        self.update_vol_estimate()
         self.logger.log_mid_price(t, self.mid_price)
 
         for tr in trades:

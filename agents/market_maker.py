@@ -1,8 +1,11 @@
+import math
+
 from agents.base_agent import Agent
 import config as cfg
 
 
 class MarketMaker(Agent):
+
     def __init__(
         self,
         id,
@@ -13,23 +16,36 @@ class MarketMaker(Agent):
         requote_threshold=cfg.MM_REQUOTE_THRESHOLD,
         max_quote_age=cfg.MM_MAX_QUOTE_AGE,
         passive_offset=cfg.PASSIVE_OFFSET,
+        time_horizon=cfg.MM_TIME_HORIZON,
+        order_intensity_k=cfg.MM_ORDER_INTENSITY_K,
+        vol_sens=cfg.MM_VOL_SENS,
     ):
         super().__init__(id)
         self.inventory = 0
         self.max_inventory = max_inventory
         self.base_spread = base_spread
-        self.inventory_risk_aversion = inventory_risk_aversion
+        self.gamma = inventory_risk_aversion
         self.base_size = base_size
         self.requote_threshold = requote_threshold
         self.max_quote_age = max_quote_age
         self.passive_offset = passive_offset
+        self.T = time_horizon
+        self.k = order_intensity_k
+        self.vol_sens = vol_sens
 
         self.last_quoted_mid = None
         self.tick_since_quote = 0
 
-    def compute_spread(self):
-        inv_penalty = self.inventory_risk_aversion * abs(self.inventory) / self.max_inventory
-        return self.base_spread * (1 + inv_penalty)
+    def compute_reservation_and_spread(self, mid, sigma):
+        reservation = mid - self.inventory * self.gamma * (sigma**2) * self.T
+        inv_risk_term = 0.5 * self.gamma * (sigma**2) * self.T
+        if self.k > 0:
+            intensity_term = (1.0 / self.gamma) * math.log(1.0 + self.gamma / self.k)
+        else:
+            intensity_term = 0.0
+        half_spread = (inv_risk_term + intensity_term) * self.vol_sens
+        half_spread = max(half_spread, self.base_spread / 2)
+        return reservation, half_spread
 
     def compute_sizes(self):
         inv_frac = self.inventory / self.max_inventory
@@ -55,14 +71,15 @@ class MarketMaker(Agent):
 
     def act(self, market_state):
         mid = market_state["mid_price"]
+        sigma = market_state.get("recent_vol", 0.005)
 
         if not self.should_requote(mid):
             self.tick_since_quote += 1
             return []
 
-        spread = self.compute_spread()
-        bid_price = mid - spread / 2
-        ask_price = mid + spread / 2
+        reservation, half_spread = self.compute_reservation_and_spread(mid, sigma)
+        bid_price = reservation - half_spread
+        ask_price = reservation + half_spread
 
         bb_other = market_state.get("best_bid_other")
         ba_other = market_state.get("best_ask_other")
