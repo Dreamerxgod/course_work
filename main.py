@@ -8,6 +8,7 @@ from utils.plotting import plot_price_series
 from utils.plotting import plot_options_prices
 import config as cfg
 from utils import file_io
+from utils import random_utils as ru
 from environment.market import Market
 from agents.trend_trader import TrendTrader
 from environment.options_market import OptionsMarket
@@ -35,34 +36,43 @@ def run(out_dir=None, enable_console=True):
     agents = []
 
     for i in range(cfg.NUM_NOISE_TRADERS):
-        agents.append(NoiseTrader(id=i+1,
-                                  noise_level=cfg.NOISE_TRADER_NOISE_LEVEL))
+        my_noise = ru.uniform(cfg.NOISE_LEVEL_MIN, cfg.NOISE_LEVEL_MAX)
+        agents.append(NoiseTrader(id=i + 1, noise_level=my_noise))
 
     for i in range(cfg.NUM_MARKET_MAKERS):
+        my_risk_aversion = ru.uniform(cfg.MM_RISK_AVERSION_MIN, cfg.MM_RISK_AVERSION_MAX)
+        my_vol_sens = ru.uniform(cfg.MM_VOL_SENS_MIN, cfg.MM_VOL_SENS_MAX)
         agents.append(MarketMaker(
             id=cfg.NUM_NOISE_TRADERS + i + 1,
             base_spread=cfg.MM_BASE_SPREAD,
-            inventory_risk_aversion=cfg.MM_INV_RISK,
+            inventory_risk_aversion=my_risk_aversion,
             max_inventory=cfg.MM_MAX_INVENTORY,
-            base_size=cfg.MM_BASE_SIZE
+            base_size=cfg.MM_BASE_SIZE,
+            vol_sens=my_vol_sens,
         ))
 
     for i in range(cfg.NUM_INFORMED_TRADERS):
+        my_sensitivity = ru.uniform(cfg.INFORMED_SENSITIVITY_MIN, cfg.INFORMED_SENSITIVITY_MAX)
+        my_signal_noise = ru.uniform(cfg.INFORMED_SIGNAL_NOISE_MIN, cfg.INFORMED_SIGNAL_NOISE_MAX)
         agents.append(InformedTrader(
             id=cfg.NUM_NOISE_TRADERS + cfg.NUM_MARKET_MAKERS + i + 1,
-            sensitivity=cfg.INFORMED_TRADER_SENSITIVITY,
-            aggressiveness=cfg.INFORMED_TRADER_AGGRESSIVENESS
+            sensitivity=my_sensitivity,
+            aggressiveness=cfg.INFORMED_TRADER_AGGRESSIVENESS,
+            signal_noise_sigma=my_signal_noise,
         ))
 
     for i in range(cfg.NUM_TREND_TRADERS):
+        my_lookback = ru.randint(cfg.TREND_LOOKBACK_MIN, cfg.TREND_LOOKBACK_MAX)
         agents.append(TrendTrader(
             id=cfg.NUM_NOISE_TRADERS
                + cfg.NUM_MARKET_MAKERS
                + cfg.NUM_INFORMED_TRADERS
-               + i + 1
+               + i + 1,
+            lookback=my_lookback,
         ))
 
     for i in range(cfg.NUM_FUNDAMENTAL_TRADERS):
+        my_f_bias = ru.gauss(0.0, cfg.FUNDAMENTAL_F_NOISE_SIGMA)
         agents.append(FundamentalTrader(
             id=cfg.NUM_NOISE_TRADERS
                + cfg.NUM_MARKET_MAKERS
@@ -70,7 +80,8 @@ def run(out_dir=None, enable_console=True):
                + cfg.NUM_TREND_TRADERS
                + i + 1,
             fundamental_price=cfg.INITIAL_PRICE,
-            aggressiveness=cfg.FUNDAMENTAL_TRADER_AGGRESSIVENESS
+            aggressiveness=cfg.FUNDAMENTAL_TRADER_AGGRESSIVENESS,
+            f_bias=my_f_bias,
         ))
 
     logger = Logger(enable_console=enable_console)

@@ -21,6 +21,7 @@ class MarketMaker(Agent):
         vol_sens=cfg.MM_VOL_SENS,
     ):
         super().__init__(id)
+        self.is_market_maker = True
         self.inventory = 0
         self.max_inventory = max_inventory
         self.base_spread = base_spread

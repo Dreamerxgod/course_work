@@ -12,6 +12,7 @@ class FundamentalTrader(Agent):
         order_prob=cfg.FUNDAMENTAL_TRADER_ORDER_PROB,
         price_alpha=cfg.FUNDAMENTAL_TRADER_PRICE_ALPHA,
         max_qty=cfg.FUNDAMENTAL_TRADER_MAX_QTY,
+        f_bias=0.0,
     ):
         super().__init__(id)
         self.fundamental_price = fundamental_price
@@ -19,10 +20,11 @@ class FundamentalTrader(Agent):
         self.order_prob = order_prob
         self.price_alpha = price_alpha
         self.max_qty = max_qty
+        self.f_bias = f_bias
 
     def act(self, market_state):
         mid = market_state['mid_price']
-        self.fundamental_price = market_state['fundamental_price']
+        self.fundamental_price = market_state['fundamental_price'] + self.f_bias
 
         if ru.random() > self.order_prob:
             return []

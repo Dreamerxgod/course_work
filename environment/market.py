@@ -87,8 +87,7 @@ class Market:
             per_agent_state = self.get_state_for(agent.id)
             orders = agent.act(per_agent_state)
 
-
-            if orders and hasattr(agent, "inventory"):
+            if orders and getattr(agent, "is_market_maker", False):
                 self.order_book.cancel_orders_for_agent(agent.id)
 
             for o in orders:
