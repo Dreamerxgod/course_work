@@ -114,8 +114,8 @@ class OptionsOrderBook:
         if hasattr(agent, "inventory_by_option"):
             key = (self.strike, self.option_type)
             agent.inventory_by_option[key] = agent.inventory_by_option.get(key, 0) + delta
-        if hasattr(agent, "inventory"):
-            agent.inventory += delta
+        # if hasattr(agent, "inventory"):
+        #     agent.inventory += delta
 
     def insert_bid(self, price, qty, agent):
         self.bids.append((price, qty, agent, self.current_t))

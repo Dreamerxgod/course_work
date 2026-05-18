@@ -34,12 +34,52 @@ class OptionsMarket:
 
     def set_agents(self, agents):
         self.agents = {a.id: a for a in agents}
-        for K_books in self.order_books.values():  # K_books = {'call': ..., 'put': ...}
-            for ob in K_books.values():  # ob = OptionsOrderBook
+        for K_books in self.order_books.values():
+            for ob in K_books.values():
                 ob.agents = self.agents
 
     def theoretical_price(self, S, K, option_type='call'):
         return bs_price(S, K, self.r, self.q, self.vol, self.tau, option_type=option_type)
+
+    def settle_expiry(self, S, agents):
+        for agent in agents:
+            inv_map = getattr(agent, 'inventory_by_option', None)
+            if not inv_map:
+                continue
+            for (K, opt_type), qty in list(inv_map.items()):
+                if qty == 0:
+                    continue
+                if opt_type == 'call':
+                    payoff = max(S - K, 0.0)
+                else:
+                    payoff = max(K - S, 0.0)
+                cash_change = qty * payoff
+                if not hasattr(agent, 'settlement_pnl'):
+                    agent.settlement_pnl = 0.0
+                agent.settlement_pnl += cash_change
+            inv_map.clear()
+
+        for K_books in self.order_books.values():
+            for ob in K_books.values():
+                ob.bids.clear()
+                ob.asks.clear()
+
+        new_tau = cfg.OPTION_TAU
+        for K in self.strikes:
+            self.mid_prices_call[K] = max(0.0001,
+                bs_price(S, K, self.r, self.q, self.vol, new_tau, option_type='call'))
+            self.mid_prices_put[K] = max(0.0001,
+                bs_price(S, K, self.r, self.q, self.vol, new_tau, option_type='put'))
+            self.order_books[K]['call'].last_price = self.mid_prices_call[K]
+            self.order_books[K]['put'].last_price = self.mid_prices_put[K]
+
+        for agent in agents:
+            if hasattr(agent, 'last_quoted_S'):
+                agent.last_quoted_S = None
+                agent.tick_since_quote = 0
+
+        if hasattr(self, 'logger') and self.logger:
+            self.logger.log(f"[EXPIRY S={S:.2f} new_tau={new_tau:.4f}]")
 
     def step(self, t, S, agents, vol=None, spot_order_book=None):
 
@@ -50,7 +90,11 @@ class OptionsMarket:
             vol = float(vol)
             self.vol = vol
 
-        # Время в опционных книгах + TTL-чистка устаревших лимиток.
+        self.tau -= 1.0 / cfg.STEPS_PER_YEAR
+        if self.tau <= 1e-6:
+            self.settle_expiry(S, agents)
+            self.tau = cfg.OPTION_TAU
+
         for K_books in self.order_books.values():
             for ob in K_books.values():
                 ob.set_time(t)

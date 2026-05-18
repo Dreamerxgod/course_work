@@ -179,14 +179,15 @@ def run(out_dir=None, enable_console=True):
             C_mid = options_market.mid_prices_call.get(K)
             P_mid = options_market.mid_prices_put.get(K)
 
+            current_tau = options_market.tau
             iv_step_call[K] = bs_utils.implied_volatility(
                 price=C_mid, S=S, K=K,
-                r=cfg.OPTION_R, q=cfg.OPTION_Q, T=cfg.OPTION_TAU,
+                r=cfg.OPTION_R, q=cfg.OPTION_Q, T=current_tau,
                 option_type='call'
             )
             iv_step_put[K] = bs_utils.implied_volatility(
                 price=P_mid, S=S, K=K,
-                r=cfg.OPTION_R, q=cfg.OPTION_Q, T=cfg.OPTION_TAU,
+                r=cfg.OPTION_R, q=cfg.OPTION_Q, T=current_tau,
                 option_type='put'
             )
 
