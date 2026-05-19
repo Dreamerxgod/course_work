@@ -149,7 +149,11 @@ def run(out_dir=None, enable_console=True):
         price_history.append(S)
         news_history.append(float(market.news))
 
-        rv = realised_vol_last(price_history, lookback=200, annualization=252)
+        # ВАЖНО: аннуализация = STEPS_PER_YEAR (а не 252).
+        # F-процесс шагает с dt=1/STEPS_PER_YEAR, поэтому per-step std надо умножать
+        # на √STEPS_PER_YEAR, чтобы получить корректную годовую вол. Иначе RV занижен в
+        # √(STEPS_PER_YEAR/252) ≈ 6.9× и опционы оцениваются по неверному σ.
+        rv = realised_vol_last(price_history, lookback=200, annualization=cfg.STEPS_PER_YEAR)
         rv_history.append(rv)
 
         vol_for_options = rv if rv is not None else cfg.OPTION_VOL

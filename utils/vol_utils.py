@@ -1,6 +1,10 @@
 import math
+import config as cfg
 
-def realised_vol_last(prices, lookback=200, annualization=252):
+
+def realised_vol_last(prices, lookback=200, annualization=None):
+    if annualization is None:
+        annualization = cfg.STEPS_PER_YEAR
     n = len(prices)
     if n < 3:
         return None
