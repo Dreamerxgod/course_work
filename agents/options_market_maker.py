@@ -10,6 +10,7 @@ class OptionsMarketMaker(Agent):
                  requote_threshold=cfg.OPT_MM_REQUOTE_THRESHOLD,
                  max_quote_age=cfg.OPT_MM_MAX_QUOTE_AGE):
         super().__init__(id)
+        self.needs_external_hedge = True
         self.inventory = 0
         self.inventory_by_option = {}
         self.base_spread_factor = base_spread_factor

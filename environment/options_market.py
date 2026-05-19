@@ -41,7 +41,7 @@ class OptionsMarket:
     def theoretical_price(self, S, K, option_type='call'):
         return bs_price(S, K, self.r, self.q, self.vol, self.tau, option_type=option_type)
 
-    def settle_expiry(self, S, agents):
+    def settle_expiry(self, S, agents, spot_order_book=None):
         for agent in agents:
             inv_map = getattr(agent, 'inventory_by_option', None)
             if not inv_map:
@@ -78,6 +78,23 @@ class OptionsMarket:
                 agent.last_quoted_S = None
                 agent.tick_since_quote = 0
 
+        if spot_order_book is not None:
+            for agent in agents:
+                if not getattr(agent, 'closes_spot_on_expiry', False):
+                    continue
+                spot_inv = getattr(agent, 'inventory', 0)
+                if spot_inv == 0:
+                    continue
+                side = 'sell' if spot_inv > 0 else 'buy'
+                close_order = {
+                    'agent_id': agent.id,
+                    'instrument': 'spot',
+                    'order_type': 'market',
+                    'side': side,
+                    'qty': abs(int(spot_inv)),
+                }
+                spot_order_book.add_order(close_order)
+
         if hasattr(self, 'logger') and self.logger:
             self.logger.log(f"[EXPIRY S={S:.2f} new_tau={new_tau:.4f}]")
 
@@ -92,7 +109,7 @@ class OptionsMarket:
 
         self.tau -= 1.0 / cfg.STEPS_PER_YEAR
         if self.tau <= 1e-6:
-            self.settle_expiry(S, agents)
+            self.settle_expiry(S, agents, spot_order_book=spot_order_book)
             self.tau = cfg.OPTION_TAU
 
         for K_books in self.order_books.values():
@@ -160,6 +177,8 @@ class OptionsMarket:
             hedge_order = list(agents)
             ru.shuffle(hedge_order)
             for agent in hedge_order:
+                if not getattr(agent, "needs_external_hedge", False):
+                    continue
                 inv_map = getattr(agent, "inventory_by_option", None)
                 if not inv_map:
                     continue

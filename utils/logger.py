@@ -86,9 +86,11 @@ class Logger:
 
     def log_option_order(self, t, order, agent=None):
         trader_type = agent.__class__.__name__ if agent else "Unknown"
+        price = order.get('price')
+        price_str = f"{price:.4f}" if price is not None else "MKT"
         self.log(
             f"[OPTION ORDER t={t}] {trader_type}({order['agent_id']}) "
-            f"{order['side']} p={order['price']:.4f} qty={order['qty']} "
+            f"{order['side']} p={price_str} qty={order['qty']} "
             f"K={order.get('strike')} "
             f"order_type={order.get('order_type')} option_type={order.get('option_type')}"
         )
