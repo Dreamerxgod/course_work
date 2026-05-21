@@ -1,8 +1,3 @@
-"""
-    python runner.py --seed 42 --n_steps 3000
-    python runner.py --seed 1 --n_steps 1000 --out_dir out/quick --no_plots
-    python runner.py --seed 1 --n_steps 500 --warmup 20 --quiet
-"""
 import argparse
 import json
 import os
@@ -42,9 +37,11 @@ def parse_args():
     p.add_argument("--out_dir", type=str, default=None,
                    help="каталог для артефактов")
     p.add_argument("--no_plots", action="store_true",
-                   help="не сохранять графики (только CSV)")
+                   help="не сохранять графики")
     p.add_argument("--quiet", action="store_true",
                    help="отключить per-step console output")
+    p.add_argument("--override", action="append", default=[],
+                   help="переопределить параметр config")
     return p.parse_args()
 
 
@@ -63,6 +60,20 @@ def main():
         cfg.WARMUP_STEPS = args.warmup
     if args.seed is not None:
         cfg.SEED = args.seed
+
+    import ast
+    for kv in args.override:
+        if "=" not in kv:
+            raise SystemExit(f"--override expects KEY=VAL, got {kv!r}")
+        key, val = kv.split("=", 1)
+        key = key.strip()
+        try:
+            parsed = ast.literal_eval(val)
+        except (ValueError, SyntaxError):
+            parsed = val
+        if not hasattr(cfg, key):
+            raise SystemExit(f"--override unknown key {key!r}")
+        setattr(cfg, key, parsed)
 
     ru.set_seed(cfg.SEED)
 

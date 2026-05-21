@@ -23,7 +23,7 @@ from utils import plotting
 from utils.bs_utils import print_iv_rv_summary
 
 
-def _path(out_dir, name):
+def path(out_dir, name):
     if out_dir is None:
         return name
     return os.path.join(out_dir, name)
@@ -130,6 +130,9 @@ def run(out_dir=None, enable_console=True):
     iv_history_call = []
     iv_history_put = []
     news_history = []
+    fundamental_history = []
+    mm_ids = [a.id for a in agents if getattr(a, 'is_market_maker', False)]
+    mm_inventory_history = []
 
     for t in range(cfg.WARMUP_STEPS):
         market.step(t, agents)
@@ -148,11 +151,8 @@ def run(out_dir=None, enable_console=True):
         S = market.mid_price
         price_history.append(S)
         news_history.append(float(market.news))
+        fundamental_history.append(float(market.fundamental_price))
 
-        # ВАЖНО: аннуализация = STEPS_PER_YEAR (а не 252).
-        # F-процесс шагает с dt=1/STEPS_PER_YEAR, поэтому per-step std надо умножать
-        # на √STEPS_PER_YEAR, чтобы получить корректную годовую вол. Иначе RV занижен в
-        # √(STEPS_PER_YEAR/252) ≈ 6.9× и опционы оцениваются по неверному σ.
         rv = realised_vol_last(price_history, lookback=200, annualization=cfg.STEPS_PER_YEAR)
         rv_history.append(rv)
 
@@ -198,6 +198,13 @@ def run(out_dir=None, enable_console=True):
         iv_history_call.append(iv_step_call)
         iv_history_put.append(iv_step_put)
 
+        mm_inv_snap = {}
+        for a in agents:
+            if not getattr(a, 'is_market_maker', False):
+                continue
+            mm_inv_snap[a.id] = getattr(a, 'inventory', 0)
+        mm_inventory_history.append(mm_inv_snap)
+
         option_trades.extend(opt_trades)
 
         for tr in opt_trades:
@@ -223,7 +230,7 @@ def run(out_dir=None, enable_console=True):
         spot_trade_counts[agent_type_map.get(tr['seller'], 'Unknown')] += 1
 
     print(f"\nTotal spot trades: {len(trades)}")
-    print("Spot trades by agent type (buyer + seller):")
+    print("Spot trades by agent type")
     for agent_type, count in spot_trade_counts.most_common():
         print(f"  {agent_type}: {count}")
 
@@ -248,17 +255,20 @@ def run(out_dir=None, enable_console=True):
     plot_options_prices(option_price_history_put, strikes=cfg.OPTION_STRIKES, title='Put Options Prices')
 
 
-    file_io.save_price_history(_path(out_dir, 'price_history.csv'), price_history)
-    file_io.save_trades(_path(out_dir, 'trades.csv'), trades)
-    file_io.save_trades(_path(out_dir, 'option_trades.csv'), option_trades)
+    file_io.save_price_history(path(out_dir, 'price_history.csv'), price_history)
+    file_io.save_trades(path(out_dir, 'trades.csv'), trades)
+    file_io.save_trades(path(out_dir, 'option_trades.csv'), option_trades)
 
-    file_io.save_wide_series_csv(_path(out_dir, 'option_mid_call.csv'), option_price_history_call, index_name='t')
-    file_io.save_wide_series_csv(_path(out_dir, 'option_mid_put.csv'), option_price_history_put, index_name='t')
+    file_io.save_wide_series_csv(path(out_dir, 'option_mid_call.csv'), option_price_history_call, index_name='t')
+    file_io.save_wide_series_csv(path(out_dir, 'option_mid_put.csv'), option_price_history_put, index_name='t')
 
-    file_io.save_wide_series_csv(_path(out_dir, 'iv_call.csv'), iv_history_call, index_name='t')
-    file_io.save_wide_series_csv(_path(out_dir, 'iv_put.csv'), iv_history_put, index_name='t')
+    file_io.save_wide_series_csv(path(out_dir, 'iv_call.csv'), iv_history_call, index_name='t')
+    file_io.save_wide_series_csv(path(out_dir, 'iv_put.csv'), iv_history_put, index_name='t')
 
-    file_io.save_series_csv(_path(out_dir, "news_history.csv"), news_history, colname="news")
+    file_io.save_series_csv(path(out_dir, "news_history.csv"), news_history, colname="news")
+    file_io.save_series_csv(path(out_dir, "rv_history.csv"), rv_history, colname="rv")
+    file_io.save_series_csv(path(out_dir, "fundamental_history.csv"), fundamental_history, colname="F")
+    file_io.save_wide_series_csv(path(out_dir, "mm_inventory.csv"), mm_inventory_history, index_name='t')
 
     return {
         "price_history": price_history,
