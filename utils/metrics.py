@@ -1,140 +1,150 @@
-import config as cfg
-import scipy.stats as stats
-from agents.noise_trader import NoiseTrader
-from agents.market_maker import MarketMaker
-from agents.informed_trader import InformedTrader
-from agents.fundamental import FundamentalTrader
-from agents.trend_trader import TrendTrader
-from environment.market import Market
-from environment.options_market import OptionsMarket
-from agents.options_market_maker import OptionsMarketMaker
-from agents.options_noise_trader import OptionsNoiseTrader
-from agents.options_arbitrageur import OptionsArbitrageur
-from utils.vol_utils import realised_vol_last
-from utils import bs_utils
+import csv
+import math
+import os
 
 
-def compute_iv_roughness(iv_history_call, iv_history_put, strikes):
-    roughness_call = []
-    roughness_put = []
-    for t in range(1, len(iv_history_call)):
-        r_call = sum(abs(iv_history_call[t][K] - iv_history_call[t-1][K]) for K in strikes) / len(strikes)
-        r_put = sum(abs(iv_history_put[t][K] - iv_history_put[t-1][K]) for K in strikes) / len(strikes)
-        roughness_call.append(r_call)
-        roughness_put.append(r_put)
-    avg_rough_call = sum(roughness_call)/len(roughness_call) if roughness_call else 0
-    avg_rough_put = sum(roughness_put)/len(roughness_put) if roughness_put else 0
-    return avg_rough_call, avg_rough_put, roughness_call, roughness_put
+def read_series(path, colname):
+    out = []
+    if not os.path.exists(path):
+        return out
+    with open(path, "r", newline="") as f:
+        r = csv.DictReader(f)
+        for row in r:
+            v = row.get(colname)
+            try:
+                out.append(float(v))
+            except (TypeError, ValueError):
+                out.append(None)
+    return out
 
 
-
-def run_simulation(include_arbitrage=True):
-    agents = []
-    for i in range(cfg.NUM_NOISE_TRADERS):
-        agents.append(NoiseTrader(id=i+1, noise_level=cfg.NOISE_TRADER_NOISE_LEVEL))
-    for i in range(cfg.NUM_MARKET_MAKERS):
-        agents.append(MarketMaker(
-            id=cfg.NUM_NOISE_TRADERS + i + 1,
-            base_spread=cfg.MM_BASE_SPREAD,
-            inventory_risk_aversion=cfg.MM_INV_RISK,
-            max_inventory=cfg.MM_MAX_INVENTORY,
-            base_size=cfg.MM_BASE_SIZE
-        ))
-    for i in range(cfg.NUM_INFORMED_TRADERS):
-        agents.append(InformedTrader(
-            id=cfg.NUM_NOISE_TRADERS + cfg.NUM_MARKET_MAKERS + i + 1,
-            sensitivity=cfg.INFORMED_TRADER_SENSITIVITY,
-            aggressiveness=cfg.INFORMED_TRADER_AGGRESSIVENESS
-        ))
-    for i in range(cfg.NUM_TREND_TRADERS):
-        agents.append(TrendTrader(
-            id=cfg.NUM_NOISE_TRADERS + cfg.NUM_MARKET_MAKERS + cfg.NUM_INFORMED_TRADERS + i + 1
-        ))
-    for i in range(cfg.NUM_FUNDAMENTAL_TRADERS):
-        agents.append(FundamentalTrader(
-            id=cfg.NUM_NOISE_TRADERS + cfg.NUM_MARKET_MAKERS + cfg.NUM_INFORMED_TRADERS + cfg.NUM_TREND_TRADERS + i + 1,
-            fundamental_price=cfg.INITIAL_PRICE,
-            aggressiveness=cfg.FUNDAMENTAL_TRADER_AGGRESSIVENESS
-        ))
-
-    market = Market(initial_price=cfg.INITIAL_PRICE)
-    market.set_agents(agents)
-
-    options_market = OptionsMarket(
-        strikes=cfg.OPTION_STRIKES,
-        tau=cfg.OPTION_TAU,
-        r=cfg.OPTION_R,
-        q=cfg.OPTION_Q,
-        vol=cfg.OPTION_VOL
-    )
-
-    options_agents = []
-    for i in range(cfg.NUM_OPTION_MARKET_MAKERS):
-        options_agents.append(OptionsMarketMaker(id=1000 + i + 1))
-    for i in range(cfg.NUM_OPTION_NOISE_TRADERS):
-        options_agents.append(OptionsNoiseTrader(id=2000 + i + 1))
-    if include_arbitrage:
-        for i in range(cfg.NUM_OPTION_ARB):
-            options_agents.append(OptionsArbitrageur(id=3000 + i + 1))
-
-    options_market.set_agents(options_agents)
-
-    price_history = []
-    iv_history_call = []
-    iv_history_put = []
-
-    for t in range(cfg.WARMUP_STEPS):
-        market.step(t, agents)
-
-    for t in range(cfg.WARMUP_STEPS, cfg.WARMUP_STEPS + cfg.NUM_STEPS):
-        market.step(t, agents)
-        S = market.mid_price
-        price_history.append(S)
-        rv = realised_vol_last(price_history, lookback=200, annualization=252)
-        vol_for_options = rv if rv is not None else cfg.OPTION_VOL
-
-        options_market.step(t=t, S=S, agents=options_agents, vol=vol_for_options, spot_order_book=market.order_book)
-
-        iv_step_call = {}
-        iv_step_put = {}
-        for K in cfg.OPTION_STRIKES:
-            C_mid = options_market.mid_prices_call.get(K)
-            P_mid = options_market.mid_prices_put.get(K)
-            iv_step_call[K] = bs_utils.implied_volatility(price=C_mid, S=S, K=K, r=cfg.OPTION_R, q=cfg.OPTION_Q, T=cfg.OPTION_TAU, option_type='call')
-            iv_step_put[K] = bs_utils.implied_volatility(price=P_mid, S=S, K=K, r=cfg.OPTION_R, q=cfg.OPTION_Q, T=cfg.OPTION_TAU, option_type='put')
-        iv_history_call.append(iv_step_call)
-        iv_history_put.append(iv_step_put)
-
-    avg_rough_call, avg_rough_put, rough_call, rough_put = compute_iv_roughness(iv_history_call, iv_history_put, cfg.OPTION_STRIKES)
-    return avg_rough_call, avg_rough_put, rough_call, rough_put
+def read_wide(path, index_name="t"):
+    if not os.path.exists(path):
+        return [], []
+    with open(path, "r", newline="") as f:
+        r = csv.DictReader(f)
+        fields = [c for c in r.fieldnames if c != index_name]
+        rows = []
+        for row in r:
+            d = {}
+            for c in fields:
+                v = row.get(c, "")
+                try:
+                    d[c] = float(v) if v not in ("", None) else None
+                except (TypeError, ValueError):
+                    d[c] = None
+            rows.append(d)
+    return fields, rows
 
 
-def main():
-    avg_rough_call_arb, avg_rough_put_arb, rough_call_arb, rough_put_arb = run_simulation(include_arbitrage=True)
-    avg_rough_call_noarb, avg_rough_put_noarb, rough_call_noarb, rough_put_noarb = run_simulation(include_arbitrage=False)
+def mean_safe(xs):
+    vals = [x for x in xs if x is not None and not (isinstance(x, float) and math.isnan(x))]
+    return sum(vals) / len(vals) if vals else None
 
-    t_stat_call, p_val_call = stats.ttest_ind(rough_call_arb, rough_call_noarb, equal_var=False)
-    t_stat_put, p_val_put = stats.ttest_ind(rough_put_arb, rough_put_noarb, equal_var=False)
 
-    print("=== IV Roughness Test ===")
-    print("Average IV roughness (calls) with arb:", avg_rough_call_arb)
-    print("Average IV roughness (calls) without arb:", avg_rough_call_noarb)
-    print("Average IV roughness (puts) with arb:", avg_rough_put_arb)
-    print("Average IV roughness (puts) without arb:", avg_rough_put_noarb)
-    print("\nStatistical test results (t-test, unequal variance):")
-    print(f"Calls: t={t_stat_call:.4f}, p={p_val_call:.4f}")
-    print(f"Puts: t={t_stat_put:.4f}, p={p_val_put:.4f}")
+def lag1_autocorr(returns):
+    n = len(returns)
+    if n < 3:
+        return None
+    a = returns[1:]
+    b = returns[:-1]
+    ma = sum(a) / len(a)
+    mb = sum(b) / len(b)
+    num = sum((ai - ma) * (bi - mb) for ai, bi in zip(a, b))
+    den_a = math.sqrt(sum((ai - ma) ** 2 for ai in a))
+    den_b = math.sqrt(sum((bi - mb) ** 2 for bi in b))
+    if den_a == 0 or den_b == 0:
+        return 0.0
+    return num / (den_a * den_b)
 
-    alpha = 0.05
-    def conclusion(p, instrument):
-        if p < alpha:
-            print(f"Hypothesis confirmed for {instrument} (p<{alpha})")
+
+def mean_run_length(returns, eps=1e-12):
+    runs = []
+    cur_len = 0
+    cur_sign = 0
+    for r in returns:
+        if r > eps:
+            s = +1
+        elif r < -eps:
+            s = -1
         else:
-            print(f"Hypothesis NOT confirmed for {instrument} (p>={alpha})")
+            continue
+        if s == cur_sign:
+            cur_len += 1
+        else:
+            if cur_len > 0:
+                runs.append(cur_len)
+            cur_sign = s
+            cur_len = 1
+    if cur_len > 0:
+        runs.append(cur_len)
+    return sum(runs) / len(runs) if runs else None
 
-    conclusion(p_val_call, "calls")
-    conclusion(p_val_put, "puts")
+
+def count_csv_rows(path):
+    if not os.path.exists(path):
+        return 0
+    with open(path, "r") as f:
+        total = sum(1 for line in f)
+    return max(0, total - 1)
 
 
-if __name__ == "__main__":
-    main()
+def avg_iv(path):
+    fields, rows = read_wide(path)
+    vals = []
+    for row in rows:
+        for v in row.values():
+            if v is not None and not (isinstance(v, float) and math.isnan(v)):
+                vals.append(v)
+    return mean_safe(vals)
+
+
+def summarize_run(out_dir):
+    rv_series = read_series(os.path.join(out_dir, "rv_history.csv"), "rv")
+    mean_rv = mean_safe(rv_series)
+
+    prices = read_series(os.path.join(out_dir, "price_history.csv"), "price")
+    f_series = read_series(os.path.join(out_dir, "fundamental_history.csv"), "F")
+    mean_dist_F = None
+    max_dist_F = None
+    if prices and f_series:
+        n = min(len(prices), len(f_series))
+        diffs = [abs(prices[i] - f_series[i]) for i in range(n)
+                 if prices[i] is not None and f_series[i] is not None]
+        if diffs:
+            mean_dist_F = sum(diffs) / len(diffs)
+            max_dist_F = max(diffs)
+
+    returns = []
+    for i in range(1, len(prices)):
+        p0, p1 = prices[i - 1], prices[i]
+        if p0 is None or p1 is None or p0 <= 0 or p1 <= 0:
+            continue
+        returns.append(math.log(p1 / p0))
+    ar1 = lag1_autocorr(returns)
+    run_len = mean_run_length(returns)
+
+    inv_fields, inv_rows = read_wide(os.path.join(out_dir, "mm_inventory.csv"))
+    abs_vals = []
+    for row in inv_rows:
+        for c in inv_fields:
+            v = row.get(c)
+            if v is not None:
+                abs_vals.append(abs(v))
+    mean_abs_mm_inv = (sum(abs_vals) / len(abs_vals)) if abs_vals else None
+
+    mean_iv_call = avg_iv(os.path.join(out_dir, "iv_call.csv"))
+    mean_iv_put = avg_iv(os.path.join(out_dir, "iv_put.csv"))
+
+    return {
+        "mean_rv": mean_rv,
+        "mean_distance_from_F": mean_dist_F,
+        "max_distance_from_F": max_dist_F,
+        "lag1_autocorr": ar1,
+        "mean_run_length": run_len,
+        "mean_abs_mm_inventory": mean_abs_mm_inv,
+        "mean_iv_call": mean_iv_call,
+        "mean_iv_put": mean_iv_put,
+        "spot_trades_count": count_csv_rows(os.path.join(out_dir, "trades.csv")),
+        "option_trades_count": count_csv_rows(os.path.join(out_dir, "option_trades.csv")),
+    }
