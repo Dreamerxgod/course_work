@@ -39,9 +39,15 @@ def read_column(path, col):
     return out
 
 
-def test_metric(metric):
-    a = read_column(os.path.join(LOW, "mc_summary.csv"), metric)
-    b = read_column(os.path.join(HIGH, "mc_summary.csv"), metric)
+def test_metric(metric, low_path=None, high_path=None, label_low="low", label_high="high"):
+    low_path = low_path or LOW
+    high_path = high_path or HIGH
+    a = read_column(os.path.join(low_path, "mc_summary.csv"), metric)
+    b = read_column(os.path.join(high_path, "mc_summary.csv"), metric)
+
+    if not a or not b:
+        print(f"\n{metric}: missing data (low n={len(a)}, high n={len(b)})")
+        return False
 
     mean_a = sum(a) / len(a)
     mean_b = sum(b) / len(b)
@@ -51,10 +57,13 @@ def test_metric(metric):
 
     u, p_u = stats.mannwhitneyu(a, b, alternative="greater")
 
+    rel = (mean_a - mean_b) / mean_a * 100 if mean_a else float("nan")
+
     print(f"\n{metric}")
-    print(f"  low_mm  mean = {mean_a:.4f}  (n={len(a)})")
-    print(f"  high_mm mean = {mean_b:.4f}  (n={len(b)})")
-    print(f"  Welch t      = {t:+.4f}   p (one-sided, low>high) = {p_t:.5f}")
+    print(f"  {label_low}  mean = {mean_a:.4f}  (n={len(a)})")
+    print(f"  {label_high} mean = {mean_b:.4f}  (n={len(b)})")
+    print(f"  diff ({label_low} - {label_high}) = {mean_a - mean_b:+.4f}   ({rel:+.2f}%)")
+    print(f"  Welch t      = {t:+.4f}   p (one-sided, {label_low}>{label_high}) = {p_t:.5f}")
     print(f"  Mann-Whitney = {u:.1f}      p (one-sided)            = {p_u:.5f}")
 
     return p_t < 0.05 and p_u < 0.05
