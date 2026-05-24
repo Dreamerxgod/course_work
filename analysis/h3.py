@@ -8,22 +8,25 @@ from scipy import stats
 
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# allow `from h2 import test_metric`
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from h2 import test_metric  # noqa: E402
+from h2 import test_metric
+import config as cfg
 
 
 LOW = "out/mc/low_info"
 HIGH = "out/mc/high_info"
 N_RUNS = 50
-MM_IDS = set(range(6, 12))
+
+MM_IDS = set(range(
+    cfg.NUM_NOISE_TRADERS + 1,
+    cfg.NUM_NOISE_TRADERS + cfg.NUM_MARKET_MAKERS + 1,
+))
 
 
 def needs_full_run(path):
     summary = os.path.join(path, "mc_summary.csv")
     if not os.path.exists(summary):
         return True
-    # check that columns + trades.csv per seed are present
     with open(summary) as f:
         header = f.readline().strip().split(",")
     if "mean_distance_from_F" not in header:
