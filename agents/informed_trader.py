@@ -40,7 +40,7 @@ class InformedTrader(Agent):
             return []
 
         price = mid + 0.5 * gap
-        qty = max(1, min(self.max_qty, int(abs(gap) / self.aggressiveness)))
+        qty = max(1, min(self.max_qty, int(abs(gap) * self.sensitivity / self.aggressiveness)))
         qty = min(qty, possible_left)
 
         return [{

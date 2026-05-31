@@ -6,8 +6,8 @@ import sys
 from scipy import stats
 
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import config as cfg  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config as cfg
 
 
 SCENARIOS = [
